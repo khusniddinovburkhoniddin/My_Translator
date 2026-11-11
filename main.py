@@ -2,42 +2,47 @@ import asyncio
 import os
 from aiogram import Bot, Dispatcher, F, types
 from aiogram.filters import Command
-from aiogram.fsm.context import FSMContext
-from aiogram.fsm.state import State, StatesGroup
 from aiogram.fsm.storage.memory import MemoryStorage
-from googletrans import LANGUAGES, Translator
+from deep_translator import GoogleTranslator
 
 BOT_TOKEN = os.getenv("BOT_TOKEN")
 
 bot = Bot(token=BOT_TOKEN)
 dp = Dispatcher(storage=MemoryStorage())
-translator = Translator()
 
-# База данных пользователей в памяти
-# user_id: {"src": "auto", "dest": "ru"}
+# Словарь основных языков для меню (Название: код)
+LANG_MAP = {
+    "Русский": "ru",
+    "Английский": "en",
+    "Немецкий": "de",
+    "Французский": "fr",
+    "Испанский": "es",
+    "Итальянский": "it",
+    "Китайский (упр.)": "zh-CN",
+    "Японский": "ja",
+    "Корейский": "ko",
+    "Турецкий": "tr",
+    "Арабский": "ar",
+}
+
+# Пользовательские настройки (user_id: {"src": "auto", "dest": "ru"})
 user_settings = {}
 
-# Список доступных языков, отсортированный по названию
-LANG_LIST = sorted(
-    [(code, name.title()) for code, name in LANGUAGES.items()],
-    key=lambda x: x[1],
-)
 
-
-class Form(StatesGroup):
-    waiting_for_src = State()
-    waiting_for_dest = State()
+def get_lang_name(code):
+    if code == "auto":
+        return "🔍 Авто"
+    for name, c in LANG_MAP.items():
+        if c == code:
+            return name
+    return code.upper()
 
 
 def get_main_keyboard(user_id):
     settings = user_settings.get(user_id, {"src": "auto", "dest": "ru"})
 
-    src_name = (
-        "🔍 Авто"
-        if settings["src"] == "auto"
-        else LANGUAGES.get(settings["src"], settings["src"]).title()
-    )
-    dest_name = LANGUAGES.get(settings["dest"], settings["dest"]).title()
+    src_name = get_lang_name(settings["src"])
+    dest_name = get_lang_name(settings["dest"])
 
     kb = [
         [
@@ -69,8 +74,9 @@ def get_languages_keyboard(prefix):
             ]
         )
 
+    sorted_langs = sorted(LANG_MAP.items(), key=lambda x: x[0])
     row = []
-    for code, name in LANG_LIST:
+    for name, code in sorted_langs:
         row.append(
             types.InlineKeyboardButton(
                 text=name, callback_data=f"{prefix}:{code}"
@@ -93,7 +99,7 @@ async def cmd_start(message: types.Message):
 
     await message.answer(
         "Привет! Я твой личный переводчик.\n\n"
-        "Выбери языки перевода в меню ниже или просто отправь мне текст!",
+        "Выбери языки в меню ниже и просто отправь мне текст для перевода!",
         reply_markup=get_main_keyboard(user_id),
     )
 
@@ -101,7 +107,7 @@ async def cmd_start(message: types.Message):
 @dp.callback_query(F.data == "change_src")
 async def process_change_src(callback: types.CallbackQuery):
     await callback.message.edit_text(
-        "Выбери язык, **С КОТОРОГО** переводить (по алфавиту):",
+        "Выбери язык, **С КОТОРОГО** переводить:",
         parse_mode="Markdown",
         reply_markup=get_languages_keyboard("set_src"),
     )
@@ -110,7 +116,7 @@ async def process_change_src(callback: types.CallbackQuery):
 @dp.callback_query(F.data == "change_dest")
 async def process_change_dest(callback: types.CallbackQuery):
     await callback.message.edit_text(
-        "Выбери язык, **НА КОТОРЫЙ** переводить (по алфавиту):",
+        "Выбери язык, **НА КОТОРЫЙ** переводить:",
         parse_mode="Markdown",
         reply_markup=get_languages_keyboard("set_dest"),
     )
@@ -125,7 +131,7 @@ async def set_src_lang(callback: types.CallbackQuery):
         user_settings[user_id] = {"src": "auto", "dest": "ru"}
 
     user_settings[user_id]["src"] = lang_code
-    await callback.answer("Язык источника изменен!")
+    await callback.answer("Исходный язык изменен!")
     await callback.message.edit_text(
         "Настройки обновлены:", reply_markup=get_main_keyboard(user_id)
     )
@@ -146,7 +152,7 @@ async def set_dest_lang(callback: types.CallbackQuery):
         user_settings[user_id] = {"src": "auto", "dest": "ru"}
 
     user_settings[user_id]["dest"] = lang_code
-    await callback.answer("Язык назначения изменен!")
+    await callback.answer("Целевой язык изменен!")
     await callback.message.edit_text(
         "Настройки обновлены:", reply_markup=get_main_keyboard(user_id)
     )
@@ -163,8 +169,7 @@ async def swap_languages(callback: types.CallbackQuery):
 
     if curr_src == "auto":
         await callback.answer(
-            "Нельзя поменять местами, когда включено 'Автоопределение'!",
-            show_alert=True,
+            "Нельзя поменять местами при автоопределении языка!", show_alert=True
         )
         return
 
@@ -183,24 +188,16 @@ async def translate_text(message: types.Message):
     settings = user_settings.get(user_id, {"src": "auto", "dest": "ru"})
 
     try:
-        if settings["src"] == "auto":
-            result = translator.translate(
-                message.text, dest=settings["dest"]
-            )
-            detected_src = (
-                LANGUAGES.get(result.src, result.src).title()
-                if hasattr(result, "src")
-                else "Неизвестный"
-            )
-            response_text = (
-                f"🔠 *Перевод* (определен: {detected_src} ➔ {LANGUAGES.get(settings['dest']).title()}):\n\n"
-                f"{result.text}"
-            )
-        else:
-            result = translator.translate(
-                message.text, src=settings["src"], dest=settings["dest"]
-            )
-            response_text = f"🔠 *Перевод*:\n\n{result.text}"
+        translated = GoogleTranslator(
+            source=settings["src"], target=settings["dest"]
+        ).translate(message.text)
+
+        src_title = get_lang_name(settings["src"])
+        dest_title = get_lang_name(settings["dest"])
+
+        response_text = (
+            f"🔠 *Перевод* ({src_title} ➔ {dest_title}):\n\n" f"{translated}"
+        )
 
         await message.answer(
             response_text,
@@ -210,7 +207,7 @@ async def translate_text(message: types.Message):
 
     except Exception as e:
         await message.answer(
-            "Произошла ошибка при переводе. Попробуйте еще раз."
+            "Произошла ошибка при переводе. Попробуйте отправить текст еще раз."
         )
 
 
