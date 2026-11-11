@@ -9,7 +9,7 @@ BOT_TOKEN = os.getenv("BOT_TOKEN")
 PORT = int(os.getenv("PORT", 8080))
 
 # ВСТАВЬ СЮДА ССЫЛКУ ИЗ GOOGLE APPS SCRIPT (между кавычек)
-GOOGLE_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbxZ50dOydnamJQIq5v7nm5uPUeC6b-GslB3iCTEW4RlRdtYLV3VjmKpp5B0YAfr29AG/exec"
+GOOGLE_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbyJHFGhAOJi-TKQ4I1R-wWcei4cm6QohkaAN6RaMV5Kp1xFZq9lcDMSxbUeFxh7L0o1/exec"
 
 bot = Bot(token=BOT_TOKEN)
 dp = Dispatcher(storage=MemoryStorage())
@@ -195,7 +195,7 @@ async def translate_text(message: types.Message):
         async with ClientSession() as session:
             params = {
                 "text": message.text,
-                "src": "" if src_lang == "auto" else src_lang,
+                "src": "auto" if src_lang == "auto" else src_lang,
                 "dest": dest_lang,
             }
             async with session.get(
