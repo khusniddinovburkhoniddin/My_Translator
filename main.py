@@ -198,17 +198,21 @@ async def translate_text(message: types.Message):
                 "src": "auto" if src_lang == "auto" else src_lang,
                 "dest": dest_lang,
             }
+            # Добавлен allow_redirects=True, так как Google делает перенаправление
             async with session.get(
-                GOOGLE_SCRIPT_URL, params=params
+                GOOGLE_SCRIPT_URL, params=params, allow_redirects=True
             ) as response:
-                data = await response.json()
+                import json
+
+                resp_text = await response.text()
+                data = json.loads(resp_text)
                 translated = data.get("result", "Ошибка получения перевода")
 
         src_title = get_lang_name(src_lang)
         dest_title = get_lang_name(dest_lang)
 
         response_text = (
-            f"🔠 *Перевод* ({src_title} ➔ {dest_title}):\n\n" f"{translated}"
+            f"🔠 *Перевод* ({src_title} ➔ {dest_title}):\n\n{translated}"
         )
 
         await message.answer(
@@ -220,7 +224,7 @@ async def translate_text(message: types.Message):
     except Exception as e:
         print(f"Ошибка перевода: {e}")
         await message.answer("Произошла ошибка при обращении к серверу.")
-
+        
 
 async def handle_ping(request):
     return web.Response(text="Bot is running!")
