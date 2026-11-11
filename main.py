@@ -188,12 +188,15 @@ async def translate_text(message: types.Message):
     settings = user_settings.get(user_id, {"src": "auto", "dest": "ru"})
 
     try:
-        translated = GoogleTranslator(
-            source=settings["src"], target=settings["dest"]
-        ).translate(message.text)
+        src_lang = settings["src"]
+        dest_lang = settings["dest"]
 
-        src_title = get_lang_name(settings["src"])
-        dest_title = get_lang_name(settings["dest"])
+        # Если выбран "авто", deep-translator принимает строку 'auto'
+        translator = GoogleTranslator(source=src_lang, target=dest_lang)
+        translated = translator.translate(message.text)
+
+        src_title = get_lang_name(src_lang)
+        dest_title = get_lang_name(dest_lang)
 
         response_text = (
             f"🔠 *Перевод* ({src_title} ➔ {dest_title}):\n\n" f"{translated}"
@@ -206,8 +209,9 @@ async def translate_text(message: types.Message):
         )
 
     except Exception as e:
+        print(f"Ошибка перевода: {e}")  # Для логов в Render
         await message.answer(
-            "Произошла ошибка при переводе. Попробуйте отправить текст еще раз."
+            "Не удалось перевести текст. Попробуйте еще раз или выберите конкретный язык ИЗ (вместо Авто)."
         )
 
 
