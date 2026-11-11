@@ -3,29 +3,29 @@ import os
 from aiogram import Bot, Dispatcher, F, types
 from aiogram.filters import Command
 from aiogram.fsm.storage.memory import MemoryStorage
+from aiohttp import web
 from deep_translator import GoogleTranslator
 
 BOT_TOKEN = os.getenv("BOT_TOKEN")
+PORT = int(os.getenv("PORT", 8080))
 
 bot = Bot(token=BOT_TOKEN)
 dp = Dispatcher(storage=MemoryStorage())
 
-# Словарь основных языков для меню (Название: код)
+# Словарь основных языков для меню
 LANG_MAP = {
     "Русский": "ru",
     "Английский": "en",
+    "Узбекский": "uz",
+    "Корейский": "ko",
     "Немецкий": "de",
     "Французский": "fr",
-    "Испанский": "es",
-    "Итальянский": "it",
     "Китайский (упр.)": "zh-CN",
     "Японский": "ja",
-    "Корейский": "ko",
     "Турецкий": "tr",
     "Арабский": "ar",
 }
 
-# Пользовательские настройки (user_id: {"src": "auto", "dest": "ru"})
 user_settings = {}
 
 
@@ -211,7 +211,21 @@ async def translate_text(message: types.Message):
         )
 
 
+# Веб-сервер для ублажения Render
+async def handle_ping(request):
+    return web.Response(text="Bot is running!")
+
+
 async def main():
+    # Запускаем легкий веб-сервер параллельно с ботом
+    app = web.Application()
+    app.router.add_get("/", handle_ping)
+    runner = web.AppRunner(app)
+    await runner.setup()
+    site = web.TCPSite(runner, "0.0.0.0", PORT)
+    await site.start()
+
+    # Запускаем бота
     await dp.start_polling(bot)
 
 
