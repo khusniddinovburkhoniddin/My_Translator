@@ -9,7 +9,7 @@ BOT_TOKEN = os.getenv("BOT_TOKEN")
 PORT = int(os.getenv("PORT", 8080))
 
 # ВСТАВЬ СЮДА ССЫЛКУ ИЗ GOOGLE APPS SCRIPT (между кавычек)
-GOOGLE_SCRIPT_URL = "СЮДА_ВСТАВЬ_ССЫЛКУ_ИЗ_ШАГА_1"
+GOOGLE_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbxZ50dOydnamJQIq5v7nm5uPUeC6b-GslB3iCTEW4RlRdtYLV3VjmKpp5B0YAfr29AG/exec"
 
 bot = Bot(token=BOT_TOKEN)
 dp = Dispatcher(storage=MemoryStorage())
