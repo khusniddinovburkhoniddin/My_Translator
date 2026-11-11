@@ -4,7 +4,7 @@ from aiogram import Bot, Dispatcher, F, types
 from aiogram.filters import Command
 from aiogram.fsm.storage.memory import MemoryStorage
 from aiohttp import web
-from deep_translator import GoogleTranslator
+from translate import Translator
 
 BOT_TOKEN = os.getenv("BOT_TOKEN")
 PORT = int(os.getenv("PORT", 8080))
@@ -30,7 +30,7 @@ user_settings = {}
 
 
 def get_lang_name(code):
-    if code == "auto":
+    if code == "autodetect":
         return "🔍 Авто"
     for name, c in LANG_MAP.items():
         if c == code:
@@ -39,7 +39,7 @@ def get_lang_name(code):
 
 
 def get_main_keyboard(user_id):
-    settings = user_settings.get(user_id, {"src": "auto", "dest": "ru"})
+    settings = user_settings.get(user_id, {"src": "autodetect", "dest": "ru"})
 
     src_name = get_lang_name(settings["src"])
     dest_name = get_lang_name(settings["dest"])
@@ -69,7 +69,7 @@ def get_languages_keyboard(prefix):
             [
                 types.InlineKeyboardButton(
                     text="🔍 Определить язык (Авто)",
-                    callback_data=f"{prefix}:auto",
+                    callback_data=f"{prefix}:autodetect",
                 )
             ]
         )
@@ -95,11 +95,11 @@ def get_languages_keyboard(prefix):
 async def cmd_start(message: types.Message):
     user_id = message.from_user.id
     if user_id not in user_settings:
-        user_settings[user_id] = {"src": "auto", "dest": "ru"}
+        user_settings[user_id] = {"src": "autodetect", "dest": "ru"}
 
     await message.answer(
         "Привет! Я твой личный переводчик.\n\n"
-        "Выбери языки в меню ниже и просто отправь мне текст для перевода!",
+        "Выбери языки в меню ниже и отправь текст!",
         reply_markup=get_main_keyboard(user_id),
     )
 
@@ -128,7 +128,7 @@ async def set_src_lang(callback: types.CallbackQuery):
     lang_code = callback.data.split(":")[1]
 
     if user_id not in user_settings:
-        user_settings[user_id] = {"src": "auto", "dest": "ru"}
+        user_settings[user_id] = {"src": "autodetect", "dest": "ru"}
 
     user_settings[user_id]["src"] = lang_code
     await callback.answer("Исходный язык изменен!")
@@ -142,14 +142,14 @@ async def set_dest_lang(callback: types.CallbackQuery):
     user_id = callback.from_user.id
     lang_code = callback.data.split(":")[1]
 
-    if lang_code == "auto":
+    if lang_code == "autodetect":
         await callback.answer(
             "Нельзя выбрать 'Авто' для целевого языка!", show_alert=True
         )
         return
 
     if user_id not in user_settings:
-        user_settings[user_id] = {"src": "auto", "dest": "ru"}
+        user_settings[user_id] = {"src": "autodetect", "dest": "ru"}
 
     user_settings[user_id]["dest"] = lang_code
     await callback.answer("Целевой язык изменен!")
@@ -162,12 +162,12 @@ async def set_dest_lang(callback: types.CallbackQuery):
 async def swap_languages(callback: types.CallbackQuery):
     user_id = callback.from_user.id
     if user_id not in user_settings:
-        user_settings[user_id] = {"src": "auto", "dest": "ru"}
+        user_settings[user_id] = {"src": "autodetect", "dest": "ru"}
 
     curr_src = user_settings[user_id]["src"]
     curr_dest = user_settings[user_id]["dest"]
 
-    if curr_src == "auto":
+    if curr_src == "autodetect":
         await callback.answer(
             "Нельзя поменять местами при автоопределении языка!", show_alert=True
         )
@@ -185,14 +185,18 @@ async def swap_languages(callback: types.CallbackQuery):
 @dp.message(F.text)
 async def translate_text(message: types.Message):
     user_id = message.from_user.id
-    settings = user_settings.get(user_id, {"src": "auto", "dest": "ru"})
+    settings = user_settings.get(user_id, {"src": "autodetect", "dest": "ru"})
 
     try:
         src_lang = settings["src"]
         dest_lang = settings["dest"]
 
-        # Если выбран "авто", deep-translator принимает строку 'auto'
-        translator = GoogleTranslator(source=src_lang, target=dest_lang)
+        # Используем MyMemory API (поддерживает авто и устойчив к блокировкам IP)
+        if src_lang == "autodetect":
+            translator = Translator(to_lang=dest_lang)
+        else:
+            translator = Translator(from_lang=src_lang, to_lang=dest_lang)
+
         translated = translator.translate(message.text)
 
         src_title = get_lang_name(src_lang)
@@ -209,19 +213,17 @@ async def translate_text(message: types.Message):
         )
 
     except Exception as e:
-        print(f"Ошибка перевода: {e}")  # Для логов в Render
+        print(f"Ошибка: {e}")
         await message.answer(
-            "Не удалось перевести текст. Попробуйте еще раз или выберите конкретный язык ИЗ (вместо Авто)."
+            "Произошла ошибка при переводе. Попробуйте выбрать конкретные языки."
         )
 
 
-# Веб-сервер для ублажения Render
 async def handle_ping(request):
     return web.Response(text="Bot is running!")
 
 
 async def main():
-    # Запускаем легкий веб-сервер параллельно с ботом
     app = web.Application()
     app.router.add_get("/", handle_ping)
     runner = web.AppRunner(app)
@@ -229,7 +231,6 @@ async def main():
     site = web.TCPSite(runner, "0.0.0.0", PORT)
     await site.start()
 
-    # Запускаем бота
     await dp.start_polling(bot)
 
 
