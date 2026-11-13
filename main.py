@@ -8,7 +8,6 @@ from aiohttp import ClientSession, web
 BOT_TOKEN = os.getenv("BOT_TOKEN")
 PORT = int(os.getenv("PORT", 8080))
 
-# ВСТАВЬ СЮДА ССЫЛКУ ИЗ GOOGLE APPS SCRIPT (между кавычек)
 GOOGLE_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbyJHFGhAOJi-TKQ4I1R-wWcei4cm6QohkaAN6RaMV5Kp1xFZq9lcDMSxbUeFxh7L0o1/exec"
 
 bot = Bot(token=BOT_TOKEN)
